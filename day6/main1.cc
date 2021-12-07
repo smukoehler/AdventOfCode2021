@@ -70,7 +70,7 @@ int main()
 
     std::vector<int> final_fishes = RunSimulation(initial_fishes);
 
-    PrintFishes(final_fishes);
+    // PrintFishes(final_fishes);
 
     std::cout << "Number of fishes = " << final_fishes.size() << std::endl;
 
