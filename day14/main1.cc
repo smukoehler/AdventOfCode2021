@@ -7,10 +7,6 @@
 
 // Map (pair, insertchar)
 using Rules = std::map<std::string, std::string>;
-// struct Rule {
-//     std::string pair;
-//     std::string insertchar;
-// };
 
 Rules ParseLines(std::vector<std::string> all_words) {
     Rules rules;
@@ -56,18 +52,20 @@ std::string Step(const std::string& starting_template, Rules& rules) {
 
 int ComputeScore(std::string output) {
     std::map<int, char> letter_scores;
+    std::map<char, int> reverse_letter_scores;
     for (char letter = 'A'; letter <= 'Z'; ++letter) {
         int score = std::count(output.begin(), output.end(), letter);
         if (score > 0) {
             letter_scores.insert({score, letter});
+            reverse_letter_scores.insert({letter, score});
         }
     }
     std::cout << "Least character: " << letter_scores.begin()->second << std::endl;
     std::cout << "Most character: " << letter_scores.rbegin()->second << std::endl;
 
-    // for (auto& item : letter_scores) {
-    //     std::cout << item.first << " " << item.second << std::endl;
-    // }
+    for (auto& item : reverse_letter_scores) {
+        std::cout << item.first << " " << item.second << std::endl;
+    }
 
     return letter_scores.rbegin()->first - letter_scores.begin()->first;
 }
@@ -90,10 +88,12 @@ int main()
     // PrintRules(rules);
 
     std::string output = starting_template;
+    std::cout << "starting template: " << starting_template << std::endl;
+    std::cout << "starting template length: " << starting_template.size() << std::endl;
     for (int step = 0; step < 10; ++step) {
         output = Step(output, rules);
-        // std::cout << "output after " << step << " steps: " << output << std::endl;
-        // std::cout << "length after " << step << " steps: " << output.size() << std::endl;
+        std::cout << "output after " << step << " steps: " << output << std::endl;
+        std::cout << "length after " << step << " steps: " << output.size() << std::endl;
     }
 
     int score = ComputeScore(output);
