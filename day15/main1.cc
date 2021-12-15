@@ -42,11 +42,11 @@ int MinCost(int** riskmap, int** costtogo, int row, int col) {
     } else if (row == 0 && col == 0)
         return 0;
     else {
-        if (row > 0 && costtogo[row - 1][col] != -1 && col > 0 && costtogo[row][col - 1] != -1) {
+        if ((row > 0) && (costtogo[row - 1][col] != -1) && (col > 0) && (costtogo[row][col - 1] != -1)) {
             return riskmap[row][col] + std::min(costtogo[row - 1][col], costtogo[row][col - 1]);
-        } else if (row > 0 && costtogo[row - 1][col] != -1) {
+        } else if ((row > 0) && (costtogo[row - 1][col] != -1)) {
             return riskmap[row][col] + std::min(costtogo[row - 1][col], MinCost(riskmap, costtogo, row, col - 1));
-        } else if (col > 0 && costtogo[row][col - 1] != -1) {
+        } else if ((col > 0) && (costtogo[row][col - 1] != -1)) {
             return riskmap[row][col] + std::min(MinCost(riskmap, costtogo, row - 1, col), costtogo[row][col - 1]);
         } else {
             costtogo[row][col] = riskmap[row][col] +
