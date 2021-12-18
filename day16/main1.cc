@@ -28,6 +28,7 @@ struct Packet {
     int typeID = 0;
     int length = 0; // length of packet, including version, typeid, (length typeID), (determination of subpackets length / num subpackets), (literal value / subpackets length)
     int literal_value;  // if typeID is 4
+    int lengthTypeId;  // either 0 or 1 if typeID is not 4
     int subpackets_length; // if length type ID is 0
     int num_subpackets; // if length type ID is 1
     std::vector<int> literal_values; // if there are subpackets??
@@ -56,7 +57,6 @@ void PrintBits(std::vector<bool> bits)
 
 int ConvertBitsToValue(std::vector<bool> bits, int startidx, int endidx) {
     std::vector<bool> bitgroup = {bits.begin() + startidx, bits.begin() + endidx};
-    PrintBits(bitgroup);
     int value = 0;
     int binarymultiplier = 1;
     int numbits = endidx - startidx;
@@ -105,8 +105,24 @@ LiteralValue GetLiteralValue(std::vector<bool> bits, int startidx) {
     return literal;
 }
 
+bool CheckIfAllZeros(std::vector<bool> bits) {
+    bool all_zeros = true;
+    for (const auto& bit : bits) {
+        all_zeros = all_zeros && (bit == false);
+    }
+    return all_zeros;
+}
+
 void DecipherBits(std::vector<bool> bits, std::vector<Packet>& packets) {
     PrintBits(bits);
+    if (bits.size() < 11 && bits.size() > 0) {
+        bool all_zeros = CheckIfAllZeros(bits);
+        if (all_zeros) {
+            std::cout << "Found zero padding of length: " << bits.size() << std::endl;
+        } else {
+            std::cout << "Something went wrong at the end. See remaining bits." << std::endl;
+        }
+    }
     int i = 0;
     Packet packet;
     packet.version = ConvertBitsToValue(bits, i, i+3);
@@ -117,26 +133,59 @@ void DecipherBits(std::vector<bool> bits, std::vector<Packet>& packets) {
     std::cout << "typeID: " <<  packet.typeID << std::endl;
 
     if (packet.typeID != 4) {
-        int lengthTypeID = bits[i+6];
+        packet.lengthTypeId = bits[i+6];
         ++packet.length;
-        if (lengthTypeID == 0) {
+        if (packet.lengthTypeId == 0) {
             int parsebits = 15;
             packet.length += parsebits;
             packet.subpackets_length = ConvertBitsToValue(bits, i+7, i+7+parsebits);
             packet.length += packet.subpackets_length;
             std::cout << "length of all subpackets: " << packet.subpackets_length << std::endl;
-            std::vector<bool> subpackets_bits = {bits.begin() + i+7+parsebits, bits.begin() + i+7+parsebits + packet.subpackets_length};
+            std::vector<bool> subpackets_bits = {bits.begin() + i + 7 + parsebits, bits.begin() + i + 7 + parsebits + packet.subpackets_length};
+            int starting_number_of_packets = packets.size();
+            std::cout << "starting_number_of_packets: " << starting_number_of_packets << std::endl;
             while (subpackets_bits.size() > 0) {
                 std::cout << "deciphering subpackets" << std::endl;
                 PrintBits(subpackets_bits);
                 DecipherBits(subpackets_bits, packets);
-                subpackets_bits = {subpackets_bits.begin() + packets.back().length, subpackets_bits.end()};
+                int ending_number_of_packets = packets.size();
+                std::cout << "ending_number_of_packets: " << ending_number_of_packets << std::endl;
+                int offset = 0;
+                if (packets[starting_number_of_packets].typeID != 4 && packets[starting_number_of_packets].lengthTypeId == 0) {
+                    offset = packets[starting_number_of_packets].length;
+                } else {
+                    offset = packets.back().length;
+                }
+                std::cout << "compute new offset: " << offset << std::endl;
+                if (offset < subpackets_bits.size()) {
+                    subpackets_bits = {subpackets_bits.begin() + offset, subpackets_bits.end()};    
+                } else {
+                    subpackets_bits.clear();
+                }
             }
+            std::cout << "Done with this round of subpackets. " << std::endl;
         } else {
             int parsebits = 11;
             packet.length += parsebits;
             packet.num_subpackets = ConvertBitsToValue(bits, i+7, i+7+parsebits); 
             std::cout << "num subpackets: " << packet.num_subpackets << std::endl;
+            std::vector<bool> subpackets_bits = {bits.begin() + i + 7 + parsebits, bits.end()};
+            int starting_number_of_packets = packets.size();
+            std::cout << "starting_number_of_packets: " << starting_number_of_packets << std::endl;
+            for (int j = 0; j < packet.num_subpackets; ++j) {
+                std::cout << "deciphering subpacket " << j << std::endl;
+                PrintBits(subpackets_bits);
+                DecipherBits(subpackets_bits, packets);
+                int offset = 0;
+                if (packets[starting_number_of_packets].typeID != 4 && packets[starting_number_of_packets].lengthTypeId == 0) {
+                    offset = packets[starting_number_of_packets].length;
+                } else {
+                    offset = packets.back().length;
+                }
+                std::cout << "compute new offset: " << offset << std::endl;
+                subpackets_bits = {subpackets_bits.begin() + offset, subpackets_bits.end()};
+                packet.length += offset;
+            }
         }
     } else {
         auto literal = GetLiteralValue(bits, i+6); 
@@ -150,6 +199,16 @@ void DecipherBits(std::vector<bool> bits, std::vector<Packet>& packets) {
     }
 
     packets.push_back(packet);
+
+    return;
+}
+
+int SumVersions(const std::vector<Packet>& packets) {
+    int sum = 0;
+    for (auto& packet : packets) {
+        sum = sum + packet.version;
+    }
+    return sum;
 }
 
 int main()
@@ -166,12 +225,15 @@ int main()
     }
 
     auto bits = ConvertHexToBits(line);
-    PrintBits(bits);
+    // PrintBits(bits);
 
     std::vector<Packet> packets;
     DecipherBits(bits, packets);
 
     std::cout << "Found " << packets.size() << " packets. " << std::endl;
+
+    int sum_versions = SumVersions(packets);
+    std::cout << "Sum of versions = " << sum_versions << std::endl;
 
     return 0;
 }
