@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -43,10 +44,35 @@ int** GetFullRiskMap(int** tile, int num_rows, int num_cols) {
     return fullmap;
 }
 
-void PrintRiskMap(int** riskmap, int num_rows, int num_cols) {
+long** InitializeDistanceMap(int num_rows, int num_cols) {
+    long** map = new long*[num_rows];
+    for (int row = 0; row < num_rows; ++row) {
+        map[row] = new long[num_cols];
+        for (int col = 0; col < num_cols; ++col) {
+            map[row][col] = std::numeric_limits<long>::max();
+        }
+    }
+    // The first node is special.
+    map[0][0] = 0;
+    return map;
+}
+
+bool** InitializeVisitedNodes(int num_rows, int num_cols) {
+    bool** map = new bool*[num_rows];
+    for (int row = 0; row < num_rows; ++row) {
+        map[row] = new bool[num_cols];
+        for (int col = 0; col < num_cols; ++col) {
+            map[row][col] = false;
+        }
+    }
+    return map;
+}
+
+
+void PrintMap(int** map, int num_rows, int num_cols) {
     for (int row = 0; row < num_rows; ++row) {
         for (int col = 0; col < num_cols; ++col) {
-            std::cout << riskmap[row][col];
+            std::cout << map[row][col];
         }
         std::cout << std::endl;
     }
@@ -115,6 +141,91 @@ int** InitializeCostToGo(int num_rows, int num_cols, int** riskmap) {
     return costtogo;
 }
 
+bool AreAllNodesVisited(bool** visited_nodes, int num_rows, int num_cols) {
+    bool check = true;
+    for (int row = 0; row < num_rows; ++row) {
+        for (int col = 0; col < num_cols; ++col) {
+            check = check && visited_nodes[row][col];
+        }
+    }
+    // std::cout << "all nodes visited? " << check << std::endl;
+    return check;
+}
+
+void RunDijkstra(long** distance_map, bool** visited_nodes, int** fullmap, int* current_row, int* current_col, int num_rows, int num_cols) {
+    long current_cost = distance_map[*current_row][*current_col];
+    std::cout << "Current node at: (" << *current_row << " , " << *current_col << ")" << std::endl;
+    std::cout << "Curent cost: " << current_cost << std::endl;
+    
+    // Visit the neighbors of the current node.
+    // Left neighbor.
+    if (*current_col > 0) {
+        int neighbor_row = *current_row;
+        int neighbor_col = *current_col - 1;
+        long distance = (long)fullmap[neighbor_row][neighbor_col] + current_cost;
+        if (distance < distance_map[neighbor_row][neighbor_col]) {
+            distance_map[neighbor_row][neighbor_col] = distance;
+        }
+    }
+    // Right neighbor.
+    if (*current_col < num_cols - 1) {
+        int neighbor_row = *current_row;
+        int neighbor_col = *current_col + 1;
+        long distance = (long)fullmap[neighbor_row][neighbor_col] + current_cost;
+        if (distance < distance_map[neighbor_row][neighbor_col]) {
+            distance_map[neighbor_row][neighbor_col] = distance;
+        }
+    }
+    // Up neighbor.
+    if (*current_row > 0) {
+        int neighbor_row = *current_row - 1;
+        int neighbor_col = *current_col;
+        long distance = (long)fullmap[neighbor_row][neighbor_col] + current_cost;
+        if (distance < distance_map[neighbor_row][neighbor_col]) {
+            distance_map[neighbor_row][neighbor_col] = distance;
+        }
+    }
+    // Up neighbor.
+    if (*current_row < num_rows - 1) {
+        int neighbor_row = *current_row + 1;
+        int neighbor_col = *current_col;
+        long distance = (long)fullmap[neighbor_row][neighbor_col] + current_cost;
+        if (distance < distance_map[neighbor_row][neighbor_col]) {
+            distance_map[neighbor_row][neighbor_col] = distance;
+        }
+    }
+
+    // Mark the current node as visited.
+    visited_nodes[*current_row][*current_col] = true;
+
+    // Choose the next node to visit.
+    int next_row = *current_row;
+    int next_col = *current_col;
+    // If on the diagonal, start at the top of the rows in the next col.
+    if (*current_row == *current_col) {
+        next_row = 0;
+        next_col++;
+    }
+    // If row < col, proceed down the col until you almost get to the diagonal. Then jump to col 0.
+    if (*current_row < *current_col) {
+        if (*current_row == *current_col - 1) {
+            next_row++;
+            next_col = 0;
+        } else {
+            next_row++;
+            next_col = *current_col;
+        }
+    }
+    if (*current_col < *current_row) {
+        next_row = *current_row;
+        next_col++;
+    }
+    // std::cout << "Next node at: (" << next_row << " , " << next_col << ")" << std::endl;
+    // RunDijkstra(distance_map, visited_nodes, fullmap, next_row, next_col, num_rows, num_cols);
+    *current_row = next_row;
+    *current_col = next_col;
+}
+
 
 int main()
 {
@@ -139,12 +250,24 @@ int main()
     // std::cout << "full risk map" << std::endl;
     // PrintRiskMap(fullmap, num_rows * kRepeats, num_cols * kRepeats);
 
-    int** costtogo = InitializeCostToGo(num_rows * kRepeats, num_cols * kRepeats, fullmap);
-    // std::cout << "cost to go" << std::endl;
+    // Although I wrote a beautiful dynamic programming solution, bellman's equation does not apply in the general case because
+    // the lowest risk could include "backwards" (up or left) steps.
+    // int** costtogo = InitializeCostToGo(num_rows * kRepeats, num_cols * kRepeats, fullmap);
     // PrintRiskMap(costtogo, num_rows * kRepeats, num_cols * kRepeats);
-    std::cout << "cost to go of bottom: " << costtogo[num_rows * kRepeats - 1][num_cols * kRepeats - 1] << std::endl;
+    // std::cout << MinCost(fullmap, costtogo, num_rows * kRepeats - 1, num_cols * kRepeats - 1) << std::endl;
 
-    std::cout << MinCost(fullmap, costtogo, num_rows * kRepeats - 1, num_cols * kRepeats - 1) << std::endl;
+    bool** visited_nodes = InitializeVisitedNodes(num_rows * kRepeats, num_cols * kRepeats);
+    long** distance_map = InitializeDistanceMap(num_rows * kRepeats, num_cols * kRepeats);
+    // PrintMap(distance_map, num_rows, num_cols);
+
+    int row = 0;
+    int col = 0;
+    while (!AreAllNodesVisited(visited_nodes, num_rows * kRepeats, num_cols * kRepeats)) {
+        RunDijkstra(distance_map, visited_nodes, fullmap, &row, &col, num_rows * kRepeats, num_cols * kRepeats);
+    }
+    // PrintMap(distance_map, num_rows, num_cols);
+
+    std::cout << "Risk computation: " << distance_map[num_rows * kRepeats - 1][num_cols * kRepeats - 1] << std::endl;
 
     // Free the memory that's been allocated.
     for (int row = 0; row < num_rows; ++row) {
@@ -157,11 +280,20 @@ int main()
     }
     delete [] fullmap;
 
+    for (int row = 0; row < num_rows * kRepeats; ++row) {
+        delete [] visited_nodes[row];
+    }
+    delete [] visited_nodes;
 
     for (int row = 0; row < num_rows * kRepeats; ++row) {
-        delete [] costtogo[row];
+        delete [] distance_map[row];
     }
-    delete [] costtogo;
+    delete [] distance_map;
+
+    // for (int row = 0; row < num_rows * kRepeats; ++row) {
+    //     delete [] costtogo[row];
+    // }
+    // delete [] costtogo;
 
     return 0;
 }
